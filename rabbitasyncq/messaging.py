@@ -3,31 +3,37 @@ import json
 import pika
 
 
-def check_channel_open(ch: pika.channel.Channel):
-    if not ch.is_open:
-        raise ConnectionError("Channel is closed.")
+class Messenger:
+    def __init__(self, conn: pika.connection.Connection, ch: pika.channel.Channel, name: str):
+        self.name = name
+        self.conn = conn
+        self.ch = ch
+
+    def check_channel_open(self):
+        if not self.ch.is_open:
+            raise ConnectionError("Channel is closed.")
 
 
-def send_msg(ch: pika.channel.Channel, queue: str, data: str):
-    check_channel_open(ch)
-    ch.basic_publish(exchange="", routing_key=queue, body=data)
+    def send_msg(self, queue: str, data: str):
+        self.check_channel_open()
+        self.ch.basic_publish(exchange="", routing_key=queue, body=data)
 
 
-def send_err(ch: pika.channel.Channel, data: str):
-    err = {"status": "ERROR", "error message": data}
-    send_msg(ch, "result", json.dumps(err))
+    def send_err(self, data: str):
+        err = {"status": "ERROR", "error message": data}
+        self.send_msg(f"{self.name} result", json.dumps(err))
 
 
-def send_stop(ch: pika.channel.Channel, job_id: str):
-    stop = {"status": "STOPPED", "job_id": job_id}
-    send_msg(ch, "result", json.dumps(stop))
+    def send_stop(self, job_id: str):
+        stop = {"status": "STOPPED", "job_id": job_id}
+        self.send_msg(f"{self.name} result", json.dumps(stop))
 
 
-def send_done(ch: pika.channel.Channel, job_id: str):
-    done = {"status": "SUCCESS", "job_id": job_id}
-    send_msg(ch, "result", json.dumps(done))
+    def send_done(self, job_id: str):
+        done = {"status": "SUCCESS", "job_id": job_id}
+        self.send_msg(f"{self.name} result", json.dumps(done))
 
 
-def ack_msg(ch: pika.channel.Channel, method: pika.frame.Method):
-    check_channel_open(ch)
-    ch.basic_ack(delivery_tag=method.delivery_tag)
+    def ack_msg(self, method: pika.frame.Method):
+        self.check_channel_open()
+        self.ch.basic_ack(delivery_tag=method.delivery_tag)

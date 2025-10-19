@@ -4,7 +4,7 @@ from typing import Callable
 
 import pika
 
-from .messaging import send_msg, send_err, send_stop, send_done, ack_msg
+from .messaging import Messenger
 
 
 class StoppableThread(threading.Thread):
@@ -21,30 +21,32 @@ class StoppableThread(threading.Thread):
 
 
 class StoppableJob(StoppableThread):
-    def __init__(self, method: pika.frame.Method, conn: pika.connection.Connection, ch: pika.channel.Channel, body: bytes, job_id: str, job_fn: Callable):
+    def __init__(self, method: pika.frame.Method, conn: pika.connection.Connection, ch: pika.channel.Channel, name: str, body: bytes, job_id: str, job_fn: Callable):
         # TODO add callback for logging
         super().__init__()
+        self.name = name
         self.job_id = job_id
         self.job_fn = job_fn
         self.body = body
-        self.method = method
         self.conn = conn
-        self.ch = ch
+        self.method = method
+        self.messenger = Messenger(conn, ch, name)
 
     def run(self):
+        # TODO I want to simply look over the job function handler
         start = self.body.get("start")
         stop = self.body.get("stop")
 
         if not isinstance(start, int) or not isinstance(stop, int):
             err_msg = "Error with job {self.job_id}: job parameters must contain 'start' and 'stop' and they must be of type int."
-            self.conn.add_callback_threadsafe(lambda: send_err(self.ch, err_msg))
+            self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
             raise ValueError(err_msg)
 
         print(f"Starting job {self.job_id}")
         for i in range(start, stop):
             if self.stopped:
-                self.conn.add_callback_threadsafe(lambda: send_stop(self.ch, self.job_id))
-                self.conn.add_callback_threadsafe(lambda: ack_msg(self.ch, self.method))
+                self.conn.add_callback_threadsafe(lambda: self.messenger.send_stop(self.job_id))
+                self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
                 print(f"Stopped job {self.job_id}")
                 return
 
@@ -52,15 +54,15 @@ class StoppableJob(StoppableThread):
                 result = self.job_fn(self.body, i)
             except Exception as e:
                 err_msg = repr(e)
-                self.conn.add_callback_threadsafe(lambda: send_err(self.ch, err_msg))
-                self.conn.add_callback_threadsafe(lambda: ack_msg(self.ch, self.method))
+                self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
+                self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
                 raise e
 
             iteration = result.get("iteration")
             if iteration is not None and iteration != i:
                 err_msg = f"Error with job {self.job_id}: result dict should not contain key 'iteration' that isn't the current iteration."
-                self.conn.add_callback_threadsafe(lambda: send_err(self.ch, err_msg))
-                self.conn.add_callback_threadsafe(lambda: ack_msg(self.ch, self.method))
+                self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
+                self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
                 raise ValueError(err_msg)
             elif iteration is None:
                 result["iteration"] = i
@@ -69,8 +71,8 @@ class StoppableJob(StoppableThread):
                 result["job_id"] = self.job_id
             result["status"] = "RUNNING"
 
-            self.conn.add_callback_threadsafe(lambda: send_msg(self.ch, "result", json.dumps(result)))
+            self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} result", json.dumps(result)))
         print(f"Finished job {self.job_id}")
-        self.conn.add_callback_threadsafe(lambda: send_done(self.ch, self.job_id))
-        self.conn.add_callback_threadsafe(lambda: send_msg(self.ch, "stop job", json.dumps({"job_id": self.job_id})))
-        self.conn.add_callback_threadsafe(lambda: ack_msg(self.ch, self.method))
+        self.conn.add_callback_threadsafe(lambda: self.messenger.send_done(self.job_id))
+        self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} stop job", json.dumps({"job_id": self.job_id})))
+        self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
