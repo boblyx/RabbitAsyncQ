@@ -19,7 +19,7 @@ def handle_result(body):
 @fixture(scope="session")
 def job_manager():
     conn = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-    jm = lambda: JobManager(conn, dummy_run, handle_result)
+    jm = lambda: JobManager("test_job_name", conn, dummy_run, handle_result)
     t = threading.Thread(target=jm)
     t.start()
     yield
