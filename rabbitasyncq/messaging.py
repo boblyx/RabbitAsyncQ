@@ -16,6 +16,7 @@ class Messenger:
 
     def send_msg(self, queue: str, data: str):
         self.check_channel_open()
+        # TODO why is exchange an empty string?
         self.ch.basic_publish(exchange="", routing_key=queue, body=data)
 
 

@@ -34,44 +34,27 @@ class StoppableJob(StoppableThread):
 
     def run(self):
         # TODO I want to simply look over the job function handler
-        start = self.body.get("start")
-        stop = self.body.get("stop")
-
-        if not isinstance(start, int) or not isinstance(stop, int):
-            err_msg = "Error with job {self.job_id}: job parameters must contain 'start' and 'stop' and they must be of type int."
-            self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
-            raise ValueError(err_msg)
-
         print(f"Starting job {self.job_id}")
-        for i in range(start, stop):
-            if self.stopped:
-                self.conn.add_callback_threadsafe(lambda: self.messenger.send_stop(self.job_id))
-                self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
-                print(f"Stopped job {self.job_id}")
-                return
+        try:
+            for result in self.job_fn(self.body):
+                if self.stopped:
+                    self.conn.add_callback_threadsafe(lambda: self.messenger.send_stop(self.job_id))
+                    self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
+                    print(f"Stopped job {self.job_id}")
+                    return
 
-            try:
-                result = self.job_fn(self.body, i)
-            except Exception as e:
-                err_msg = repr(e)
-                self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
-                self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
-                raise e
+                job_id = result.get("job_id")
+                if job_id is None or job_id != self.job_id:
+                    result["job_id"] = self.job_id
+                result["status"] = "RUNNING"
 
-            iteration = result.get("iteration")
-            if iteration is not None and iteration != i:
-                err_msg = f"Error with job {self.job_id}: result dict should not contain key 'iteration' that isn't the current iteration."
-                self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
-                self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
-                raise ValueError(err_msg)
-            elif iteration is None:
-                result["iteration"] = i
-            job_id = result.get("job_id")
-            if job_id is None or job_id != self.job_id:
-                result["job_id"] = self.job_id
-            result["status"] = "RUNNING"
+                self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} result", json.dumps(result)))
+        except Exception as e:
+            err_msg = repr(e)
+            self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
+            self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
+            raise e
 
-            self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} result", json.dumps(result)))
         print(f"Finished job {self.job_id}")
         self.conn.add_callback_threadsafe(lambda: self.messenger.send_done(self.job_id))
         self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} stop job", json.dumps({"job_id": self.job_id})))
