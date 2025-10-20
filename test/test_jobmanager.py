@@ -14,6 +14,7 @@ def dummy_run(body):
 
 
 def handle_result(body):
+    assert body["nyaa"] % 5 == 0
     print(f"Received results: {body}")
 
 
