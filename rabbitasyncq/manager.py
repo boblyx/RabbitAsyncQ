@@ -62,7 +62,7 @@ class JobManager:
             job_data = json.loads(body)
             job_id = job_data["job_id"]
         except:
-            # TODO if either the data wasn't parsed as json properly or there was no job id, there's something wrong. Fail immediately.
+            # if either the data wasn't parsed as json properly or there was no job id, there's something wrong. Fail immediately.
             ...
 
         job_thread = StoppableJob(method, self.conn, ch, self.name, job_data, job_id, self.job_fn)
@@ -75,7 +75,7 @@ class JobManager:
             job_id = result_data["job_id"]
             self.result_fn(result_data)
         except:
-            # TODO data not json or no job_id or result_fn errors, fail and ack job
+            # data not json or no job_id or result_fn errors, fail and ack job
             ...
         finally:
             self.messenger.ack_msg(method)
@@ -90,7 +90,7 @@ class JobManager:
             print(f"Stopped job with ID: {job_id}.")
             del self.jobs[job_id]
         except:
-            # TODO data not json, job_id not found or job_id not in job_thread, just fail
+            # data not json, job_id not found or job_id not in job_thread, just fail
             ...
         finally:
             self.messenger.ack_msg(method)

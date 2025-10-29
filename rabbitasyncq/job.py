@@ -50,7 +50,7 @@ class StoppableJob(StoppableThread):
                 self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} result", json.dumps(result)))
         except Exception as e:
             err_msg = repr(e)
-            message = {"status": "ERROR", "message": err_msg}
+            message = {"status": "ERROR", "message": err_msg, "job_id": self.job_id}
             self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} result", json.dumps(message)))
             self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
             raise e
