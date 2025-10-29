@@ -32,13 +32,13 @@ def test_job(job_manager):
     job_id = os.urandom(15).hex()
     with pika.BlockingConnection(pika.ConnectionParameters(host="localhost")) as connection:
         channel = connection.channel()
-        channel.basic_publish(exchange="", routing_key="input job", body=json.dumps({"var": 2, "job_id": job_id}))
+        channel.basic_publish(exchange="", routing_key="test_job_name input job", body=json.dumps({"var": 2, "job_id": job_id}))
 
 
 def test_cancel(job_manager):
     job_id = os.urandom(15).hex()
     with pika.BlockingConnection(pika.ConnectionParameters(host="localhost")) as connection:
         channel = connection.channel()
-        channel.basic_publish(exchange="", routing_key="input job", body=json.dumps({"var": 2, "job_id": job_id}))
+        channel.basic_publish(exchange="", routing_key="test_job_name input job", body=json.dumps({"var": 2, "job_id": job_id}))
         time.sleep(0.5)
-        channel.basic_publish(exchange="", routing_key="stop job", body=json.dumps({"job_id": job_id}))
+        channel.basic_publish(exchange="", routing_key="test_job_name stop job", body=json.dumps({"job_id": job_id}))
