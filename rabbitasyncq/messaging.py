@@ -20,11 +20,6 @@ class Messenger:
         self.ch.basic_publish(exchange="", routing_key=queue, body=data)
 
 
-    def send_err(self, data: str):
-        err = {"status": "ERROR", "error message": data}
-        self.send_msg(f"{self.name} result", json.dumps(err))
-
-
     def send_stop(self, job_id: str):
         stop = {"status": "STOPPED", "job_id": job_id}
         self.send_msg(f"{self.name} result", json.dumps(stop))

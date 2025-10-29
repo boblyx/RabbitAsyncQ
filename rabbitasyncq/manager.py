@@ -8,25 +8,6 @@ from .job import StoppableJob
 from .messaging import Messenger
 
 
-def parse_json(messenger: Messenger, data: str):
-    try:
-        return json.loads(data)
-    except Exception as e:
-        err_msg = f"Incorrect JSON format for the following message:\n{body}"
-        messenger.send_err(err_msg)
-        e.add_note(err_msg)
-        raise e
-
-
-def get_job_id(messenger: Messenger, data: dict):
-    job_id = data.get('job_id')
-    if job_id is None:
-        err_msg = "No job_id found in the following message:\n{body}"
-        messenger.send_err(err_msg)
-        raise ValueError(err_msg)
-    return job_id
-
-
 class JobManager:
     def __init__(self, name: str, conn: pika.connection.Connection, job_fn: Callable, result_fn: Callable, exchange_opt={}, channel_opt={}):
         self.name = name
