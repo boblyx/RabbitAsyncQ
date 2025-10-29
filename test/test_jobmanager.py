@@ -13,8 +13,19 @@ def dummy_run(body):
         yield {"nyaa": i * 5}
 
 
+def exception_run(body):
+    raise ValueError("I'm supposed to raise to make sure library is handling exceptions in job handlers.")
+
+
 def handle_result(body):
-    assert body["nyaa"] % 5 == 0
+    if body["status"] == "SUCCESS":
+        assert body["nyaa"] % 5 == 0
+    print(f"Received results: {body}")
+
+
+def handle_exception_result(body):
+    if body["status"] == "ERROR":
+        print("Got an error from job function")
     print(f"Received results: {body}")
 
 
@@ -28,17 +39,34 @@ def job_manager():
     t.join(timeout=1)
 
 
+@fixture
+def job_manager_exception():
+    conn = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+    jm = lambda: JobManager("fail_test_job_name", conn, exception_run, handle_exception_result)
+    t = threading.Thread(target=jm)
+    t.start()
+    yield
+    t.join(timeout=1)
+
+
 def test_job(job_manager):
     job_id = os.urandom(15).hex()
     with pika.BlockingConnection(pika.ConnectionParameters(host="localhost")) as connection:
         channel = connection.channel()
-        channel.basic_publish(exchange="", routing_key="input job", body=json.dumps({"var": 2, "job_id": job_id}))
+        channel.basic_publish(exchange="", routing_key="test_job_name input job", body=json.dumps({"var": 2, "job_id": job_id}))
 
 
 def test_cancel(job_manager):
     job_id = os.urandom(15).hex()
     with pika.BlockingConnection(pika.ConnectionParameters(host="localhost")) as connection:
         channel = connection.channel()
-        channel.basic_publish(exchange="", routing_key="input job", body=json.dumps({"var": 2, "job_id": job_id}))
+        channel.basic_publish(exchange="", routing_key="test_job_name input job", body=json.dumps({"var": 2, "job_id": job_id}))
         time.sleep(0.5)
-        channel.basic_publish(exchange="", routing_key="stop job", body=json.dumps({"job_id": job_id}))
+        channel.basic_publish(exchange="", routing_key="test_job_name stop job", body=json.dumps({"job_id": job_id}))
+
+
+def test_exception_run(job_manager_exception):
+    job_id = os.urandom(15).hex()
+    with pika.BlockingConnection(pika.ConnectionParameters(host="localhost")) as connection:
+        channel = connection.channel()
+        channel.basic_publish(exchange="", routing_key="fail_test_job_name input job", body=json.dumps({"var": 2, "job_id": job_id}))

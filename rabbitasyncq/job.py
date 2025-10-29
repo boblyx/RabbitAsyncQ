@@ -33,7 +33,6 @@ class StoppableJob(StoppableThread):
         self.messenger = Messenger(conn, ch, name)
 
     def run(self):
-        # TODO I want to simply look over the job function handler
         print(f"Starting job {self.job_id}")
         try:
             for result in self.job_fn(self.body):
@@ -51,7 +50,8 @@ class StoppableJob(StoppableThread):
                 self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} result", json.dumps(result)))
         except Exception as e:
             err_msg = repr(e)
-            self.conn.add_callback_threadsafe(lambda: self.messenger.send_err(err_msg))
+            message = {"status": "ERROR", "message": err_msg, "job_id": self.job_id}
+            self.conn.add_callback_threadsafe(lambda: self.messenger.send_msg(f"{self.name} result", json.dumps(message)))
             self.conn.add_callback_threadsafe(lambda: self.messenger.ack_msg(self.method))
             raise e
 
